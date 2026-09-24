@@ -10,7 +10,7 @@ Next.js 15, TypeScript, Supabase Auth/PostgreSQL, Row Level Security e `qrcode`.
 
 1. `npm install`
 2. Copie `.env.example` para `.env.local` e configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `NEXT_PUBLIC_SITE_URL` (URL pública exata, sem barra final).
-3. Crie um projeto Supabase e aplique `supabase/migrations/20260924000000_initial.sql` pelo SQL Editor ou fluxo de migrations da sua instância.
+3. Crie um projeto Supabase e aplique, na ordem, os dois arquivos em `supabase/migrations/` pelo SQL Editor ou fluxo de migrations da sua instância.
 4. No Supabase Auth, crie o usuário da oficina e copie seu UUID. No SQL Editor, execute `insert into public.profiles(id,role) values ('UUID_DO_USUARIO','admin');`. Use somente uma conta autorizada. O aplicativo não oferece cadastro público de administradores.
 5. `npm run dev` e acesse `http://localhost:3000`.
 

@@ -9,7 +9,7 @@ function optional(f: FormData, name: string) { return String(f.get(name) ?? '').
 function number(f: FormData, name: string) { const v = optional(f,name); if (v === null) return null; const n = Number(v); if (!Number.isFinite(n) || n < 0) throw new Error(`Número inválido: ${name}`); return n; }
 function result(error: {message:string}|null) { if (error) throw new Error(error.message); }
 export async function login(f: FormData) {
-  const s = await db(); const { error } = await s.auth.signInWithPassword({email:required(f,'email'), password:required(f,'password')});
+  const s = await db(); const identifier=required(f,'identifier').toLowerCase(); const email=identifier==='nicolasdelrey'?'nicolasdelrey@delreylubs.example':identifier; const { error } = await s.auth.signInWithPassword({email, password:required(f,'password')});
   if (error) redirect('/login?erro=credenciais');
   redirect('/');
 }

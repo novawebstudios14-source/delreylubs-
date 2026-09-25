@@ -5,6 +5,7 @@ import './dashboard.css';
 
 type Reminder = {
   id: string; vehicle_id: string; type: string; due_date: string | null; due_mileage: number | null;
+  services: { service_date: string; updated_at: string };
   vehicles: { plate: string; brand: string; model: string; mileage: number; customers: { name: string; phone: string; whatsapp: string | null } };
 };
 type RecentService = { id: string; service_date: string; type: string; vehicles: { plate: string; brand: string; model: string } | null };
@@ -29,7 +30,7 @@ async function loadReminders(s: Awaited<ReturnType<typeof admin>>) {
   const all: Reminder[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await s.from('maintenance_reminders')
-      .select('id,vehicle_id,type,due_date,due_mileage,vehicles(plate,brand,model,mileage,customers(name,phone,whatsapp))')
+      .select('id,vehicle_id,type,due_date,due_mileage,services(service_date,updated_at),vehicles(plate,brand,model,mileage,customers(name,phone,whatsapp))')
       .order('due_date', { ascending: true, nullsFirst: false }).order('id', { ascending: true })
       .range(from, from + 999);
     if (error) throw new Error(error.message);
@@ -57,9 +58,17 @@ export default async function Page() {
   const error = [customers, vehicles, month, total, recent, contacts].find(r => r.error)?.error;
   if (error) throw new Error(error.message);
   const services = (recent.data ?? []) as unknown as RecentService[];
-  const overdue = reminders.filter(item => status(item, today, soon) === 'Vencido');
-  const upcoming = reminders.filter(item => status(item, today, soon) === 'Próximo');
-  const priority = [...overdue, ...upcoming].slice(0, 5);
+  const latestByService = new Map<string, Reminder>();
+  for (const item of reminders) {
+    const key = `${item.vehicle_id}:${item.type.trim().toLocaleLowerCase('pt-BR')}`;
+    const previous = latestByService.get(key);
+    if (!previous || item.services.service_date > previous.services.service_date ||
+      (item.services.service_date === previous.services.service_date && item.services.updated_at > previous.services.updated_at)) latestByService.set(key, item);
+  }
+  const current = [...latestByService.values()];
+  const overdue = current.filter(item => status(item, today, soon) === 'Vencido');
+  const upcoming = current.filter(item => status(item, today, soon) === 'Próximo');
+  const priority = [...overdue, ...upcoming].filter((item, index, items) => items.findIndex(other => other.vehicle_id === item.vehicle_id) === index).slice(0, 5);
   const latestContact = new Map<string, string>();
   for (const item of contacts.data ?? []) if (!latestContact.has(item.vehicle_id)) latestContact.set(item.vehicle_id, item.contacted_at);
   const dateHeading = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' }).format(now);

@@ -1,4 +1,7 @@
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { db } from '@/lib/supabase';
 import { displayDate, isPublicId, maintenanceStatus, type PublicHistory } from '@/lib/public-history';
 
@@ -38,8 +41,13 @@ export async function GET(_request: Request, {params}: {params: Promise<{id: str
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Histórico digital · ${vehicle.brand} ${vehicle.model}`);
   pdf.setAuthor('Del Rey Lubrificantes');
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  pdf.registerFontkit(fontkit);
+  const [regularBytes, boldBytes] = await Promise.all([
+    readFile(join(process.cwd(), 'public/fonts/DejaVuSans.ttf')),
+    readFile(join(process.cwd(), 'public/fonts/DejaVuSans-Bold.ttf')),
+  ]);
+  const regular = await pdf.embedFont(regularBytes, {subset: true});
+  const bold = await pdf.embedFont(boldBytes, {subset: true});
   let page: PDFPage;
   let y = 0;
   function newPage() {
@@ -53,7 +61,7 @@ export async function GET(_request: Request, {params}: {params: Promise<{id: str
   }
   function line(text: string, size = 11, emphasize = false, spacing = 17) {
     const font = emphasize ? bold : regular;
-    for (const part of wrap(text, font, size, pageWidth - 2 * margin)) {
+    for (const part of wrap(text.normalize('NFC').replace(/[^\u0000-\u00ff\u2013\u2014\u2018-\u201d\u2022\u20ac]/g, ' '), font, size, pageWidth - 2 * margin)) {
       if (y < 68) newPage();
       if (part) page.drawText(part, {x: margin, y, size, font, color: dark});
       y -= spacing;

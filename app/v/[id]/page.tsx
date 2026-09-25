@@ -1,3 +1,47 @@
-import {notFound} from 'next/navigation';import {db} from '@/lib/supabase';
-type Entry={date:string;mileage:number|null;type:string;description:string;parts:string|null;next_due_date:string|null;next_due_mileage:number|null};type History={brand:string;model:string;year:number;plate:string;mileage:number;updated_at:string;services:Entry[]};
-export default async function Page({params}:{params:Promise<{id:string}>}){const {id}=await params;if(!/^[0-9a-f]{8}-[0-9a-f-]{27,}$/.test(id))notFound();const s=await db();const {data,error}=await s.rpc('vehicle_public_history',{p_public_id:id});if(error||!data)notFound();const v=data as History;const next=v.services.find(x=>x.next_due_date||x.next_due_mileage);return <div className="public"><div className="card"><span className="badge">HISTÓRICO DIGITAL DO VEÍCULO</span><h1 style={{marginTop:14}}>{v.brand} {v.model}</h1><p className="muted">{v.year} · Placa {v.plate}</p><div className="grid"><div><span className="muted small">Quilometragem registrada</span><h2>{v.mileage.toLocaleString('pt-BR')} km</h2></div><div><span className="muted small">Atualizado em</span><h2>{new Date(v.updated_at).toLocaleDateString('pt-BR')}</h2></div></div></div>{next&&<section className="card"><h2>Próxima manutenção</h2><strong>{next.type}</strong><p>{next.next_due_date&&new Date(next.next_due_date+'T12:00:00').toLocaleDateString('pt-BR')}{next.next_due_date&&next.next_due_mileage?' ou ':''}{next.next_due_mileage&&`${next.next_due_mileage.toLocaleString('pt-BR')} km`}</p></section>}<section className="card"><h2>Histórico de manutenções</h2>{!v.services.length?<p className="muted">Nenhum serviço registrado.</p>:<div className="timeline">{v.services.map((x,i)=><article key={i}><span className="muted small">{new Date(x.date+'T12:00:00').toLocaleDateString('pt-BR')} · {x.mileage?.toLocaleString('pt-BR')??'—'} km</span><h3>{x.type}</h3><p>{x.description}</p>{x.parts&&<p className="muted small">Peças: {x.parts}</p>}</article>)}</div>}</section></div>}
+import { notFound } from 'next/navigation';
+import { db } from '@/lib/supabase';
+import { displayDate, isPublicId, maintenanceStatus, type PublicHistory } from '@/lib/public-history';
+import { PdfActions } from './pdf-actions';
+
+export default async function Page({params}: {params: Promise<{id: string}>}) {
+  const {id} = await params;
+  if (!isPublicId(id)) notFound();
+  const s = await db();
+  const {data, error} = await s.rpc('vehicle_public_history', {p_public_id: id});
+  if (error || !data) notFound();
+  const vehicle = data as PublicHistory;
+  const maintenance = maintenanceStatus(vehicle);
+  const workshopPhone = (process.env.NEXT_PUBLIC_WORKSHOP_WHATSAPP || '5511999999999').replace(/\D/g, '');
+  const isDemoPhone = !process.env.NEXT_PUBLIC_WORKSHOP_WHATSAPP;
+  const message = maintenance
+    ? `Olá! Consultei o histórico digital do meu ${vehicle.brand} ${vehicle.model} (${vehicle.plate}) e gostaria de agendar a ${maintenance.service.type.toLowerCase()}${maintenance.overdue ? ' que está vencida' : ''}. Podemos conversar?`
+    : `Olá! Consultei o histórico digital do meu ${vehicle.brand} ${vehicle.model} (${vehicle.plate}) e gostaria de agendar uma manutenção. Podemos conversar?`;
+  const whatsapp = `https://wa.me/${workshopPhone}?text=${encodeURIComponent(message)}`;
+  return <div className="public">
+    <div className="card">
+      <span className="badge">HISTÓRICO DIGITAL DO VEÍCULO</span>
+      <h1 style={{marginTop: 14}}>{vehicle.brand} {vehicle.model}</h1>
+      <p className="muted">{vehicle.year} · Placa {vehicle.plate}</p>
+      <div className="grid">
+        <div><span className="muted small">Quilometragem registrada</span><h2>{vehicle.mileage.toLocaleString('pt-BR')} km</h2></div>
+        <div><span className="muted small">Atualizado em</span><h2>{new Date(vehicle.updated_at).toLocaleDateString('pt-BR')}</h2></div>
+      </div>
+      <PdfActions href={`/v/${id}/pdf`} fileName={`historico-${vehicle.plate.replace(/[^A-Za-z0-9]/g, '')}.pdf`} />
+    </div>
+    {maintenance && <section className="card">
+      {maintenance.overdue ? <div className="overdue-alert" role="status"><strong>VENCIDA</strong><span>Esta manutenção já passou do prazo. Agende uma revisão.</span></div> : <span className="badge soon">AGENDAMENTO</span>}
+      <h2 style={{marginTop: 14}}>{maintenance.overdue ? 'Manutenção vencida' : 'Próxima manutenção'}</h2>
+      <strong>{maintenance.service.type}</strong>
+      <p>{maintenance.service.next_due_date && displayDate(maintenance.service.next_due_date)}{maintenance.service.next_due_date && maintenance.service.next_due_mileage !== null ? ' ou ' : ''}{maintenance.service.next_due_mileage !== null && `${maintenance.service.next_due_mileage.toLocaleString('pt-BR')} km`}</p>
+      <a className="button whatsapp-button" href={whatsapp} target="_blank" rel="noopener noreferrer">Agendar pelo WhatsApp ↗</a>
+      {isDemoPhone && <p className="muted small demo-phone">Número de demonstração. A oficina ainda precisa informar o WhatsApp oficial.</p>}
+    </section>}
+    <section className="card"><h2>Histórico de manutenções</h2>
+      {!vehicle.services.length ? <p className="muted">Nenhum serviço registrado.</p> : <div className="timeline">{vehicle.services.map((service, index) => <article key={index}>
+        <span className="muted small">{displayDate(service.date)} · {service.mileage?.toLocaleString('pt-BR') ?? '—'} km</span>
+        <h3>{service.type}</h3><p>{service.description}</p>
+        {service.parts && <p className="muted small">Peças: {service.parts}</p>}
+      </article>)}</div>}
+    </section>
+  </div>;
+}

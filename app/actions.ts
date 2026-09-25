@@ -3,6 +3,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { admin } from '@/lib/auth';
+import { phoneDigits } from '@/lib/phone';
 
 function required(f: FormData, name: string) { const v = String(f.get(name) ?? '').trim(); if (!v) throw new Error(`Campo obrigatório: ${name}`); return v; }
 function optional(f: FormData, name: string) { return String(f.get(name) ?? '').trim() || null; }
@@ -16,7 +17,7 @@ export async function login(f: FormData) {
 export async function logout() { const s = await db(); await s.auth.signOut(); redirect('/login'); }
 export async function saveCustomer(f: FormData) {
   const s = await admin(); const id=optional(f,'id');
-  const fields={name:required(f,'name'),phone:required(f,'phone'),whatsapp:optional(f,'whatsapp'),email:optional(f,'email'),cpf:optional(f,'cpf'),notes:optional(f,'notes')};
+  const fields={name:required(f,'name'),phone:phoneDigits(required(f,'phone')),whatsapp:optional(f,'whatsapp') ? phoneDigits(optional(f,'whatsapp')!) : null,email:optional(f,'email'),cpf:optional(f,'cpf'),notes:optional(f,'notes')};
   const q=id?s.from('customers').update(fields).eq('id',id):s.from('customers').insert(fields);
   const {error}=await q; result(error); revalidatePath('/clientes'); redirect('/clientes');
 }

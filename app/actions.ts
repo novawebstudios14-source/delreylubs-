@@ -42,5 +42,5 @@ export async function transfer(f:FormData) {
 export async function contacted(f:FormData) {
   const s=await admin(); const vehicle=required(f,'vehicle_id');
   const {error}=await s.from('contact_logs').insert({vehicle_id:vehicle,notes:optional(f,'notes')}); result(error);
-  revalidatePath('/retornos'); redirect('/retornos');
+  revalidatePath('/retornos'); revalidatePath('/'); redirect(optional(f,'redirect_to')==='/'?'/':'/retornos');
 }

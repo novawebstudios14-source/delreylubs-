@@ -1,10 +1,10 @@
 import { redirect } from 'next/navigation';
-import { db } from './supabase';
+import { currentAccount } from './appwrite';
+import { query } from './database';
 export async function admin() {
-  const client = await db();
-  const { data: { user } } = await client.auth.getUser();
+  const user = await currentAccount();
   if (!user) redirect('/login');
-  const { data: profile } = await client.from('profiles').select('id').eq('id', user.id).eq('role', 'admin').single();
-  if (!profile) throw new Error('Acesso administrativo não autorizado. Configure o perfil conforme README.');
-  return client;
+  const rows = await query('select id from profiles where id = $1 and role = $2', [user.$id, 'admin']);
+  if (!rows.length) throw new Error('Acesso administrativo não autorizado. Configure o perfil conforme README.');
+  return user;
 }

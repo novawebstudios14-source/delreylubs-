@@ -1,44 +1,35 @@
 # Del Rey Lubs · Histórico digital do veículo
 
-Sistema web de oficina para clientes, veículos, manutenção, retornos e histórico público por QR Code. O histórico acompanha o veículo após a transferência de proprietário.
+Sistema web de oficina para clientes, veículos, manutenção, retornos e histórico público por QR Code. O histórico acompanha o veículo após a transferência de proprietário. Todos os serviços cadastrados aparecem automaticamente no histórico público; observações internas permanecem privadas.
 
 ## Tecnologia
 
-Next.js 15, TypeScript, Supabase Auth/PostgreSQL, Row Level Security e `qrcode`.
+Next.js 15, Appwrite Cloud Auth, Appwrite Sites e PostgreSQL nativo gerenciado. Somente o servidor acessa o PostgreSQL; autenticação e perfil administrativo são verificados antes de cada consulta interna.
 
-## Instalação
+## Configuração
 
-1. `npm ci`
-2. Copie `.env.example` para `.env.local` e configure `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` e `NEXT_PUBLIC_SITE_URL` (URL pública exata, sem barra final).
-3. Crie um projeto Supabase e aplique, na ordem, os arquivos em `supabase/migrations/` pelo SQL Editor ou fluxo de migrations da sua instância.
-4. No Supabase Auth, crie o usuário da oficina e copie seu UUID. No SQL Editor, execute `insert into public.profiles(id,role) values ('UUID_DO_USUARIO','admin');`. Use somente uma conta autorizada. O aplicativo não oferece cadastro público de administradores.
-5. `npm run dev` e acesse `http://localhost:3000`.
+1. `npm ci`; copie `.env.example` para `.env.local`.
+2. Crie projeto Appwrite Cloud Pro e um banco **PostgreSQL nativo** no mesmo projeto. Escolha a região de acordo com o projeto; obtenha endpoint, ID e cadeia de conexão TLS no Console. Não use TablesDB para esta migração.
+3. No Console, crie uma chave de API **somente no servidor** com escopos `sessions.write` e `users.write` (este último necessário apenas para migrar usuários; após a importação, substitua a chave por outra somente com `sessions.write`). Configure `APPWRITE_ENDPOINT`, `APPWRITE_PROJECT_ID`, `APPWRITE_API_KEY`, `APPWRITE_DATABASE_URL` e `NEXT_PUBLIC_SITE_URL` com o domínio HTTPS definitivo.
+4. Aplique `appwrite/schema.sql` **apenas no destino vazio** usando editor SQL do Appwrite ou `psql`. O schema é independente dos schemas internos do Supabase.
+5. Para instalações novas, crie uma conta pela administração do Appwrite e insira manualmente seu UUID em `profiles` com `role='admin'`. Não existe cadastro público de administradores.
+6. Execute `npm run typecheck`, `npm run lint`, `npm run build` e teste login, cadastro, serviço, transferência, retorno, QR e PDF no site de prévia.
 
-Se o projeto Supabase desativar a exposição automática de tabelas pelo Data API, exponha `public` e conceda os privilégios de tabelas da migration. Todas as tabelas têm RLS e somente administradores autorizados acessam seus dados. A função pública aceita um UUID imprevisível e retorna marca, modelo, ano, placa mascarada, quilometragem e os serviços cadastrados; jamais consulta tabelas de clientes para o visitante.
+## Transferência sem perda de registros
 
-## Privacidade do histórico público
+O script `appwrite/migrate.mjs` exige as variáveis acima e `SOURCE_DATABASE_URL` (conexão PostgreSQL do Supabase, somente na máquina de migração). Nunca salve credenciais no GitHub. Rode `node appwrite/migrate.mjs` para conferir origem, contagens e destino vazio; depois de fazer backup da origem e manter a oficina sem novas gravações durante a janela de transferência, execute `node appwrite/migrate.mjs --apply`.
 
-Todo serviço cadastrado aparece automaticamente no histórico pelo QR Code. Descrição e peças são públicas; use **Observações internas** para dados pessoais ou informações reservadas. O link público de um veículo pode ser renovado no cadastro do veículo, invalidando o QR Code anterior; substitua os adesivos antigos. A exportação em PDF recusa históricos extensos para limitar o trabalho por requisição. Configure também um limite de requisições para `/v/*/pdf` na borda do provedor de hospedagem.
+O script preserva UUIDs, `public_id` dos QR codes, datas, histórico de proprietários, serviços, lembretes, contatos, perfis e o hash bcrypt das contas; verifica as linhas de cada tabela antes de confirmar. O Supabase de origem não é modificado. O script não permite sobrescrever um destino com registros. Não use a migração automática de bancos do Appwrite para estes dados: ela não mantém funções, índices e campos do PostgreSQL necessariamente idênticos.
 
-Em instalações que receberam `20260926000000_public_history_consent.sql`, aplique a migração `20260926000001_auto_publish_services.sql` para restaurar o histórico de todos os serviços.
+Uma exportação e comparação corretas **não substituem** o teste de login e do histórico público no domínio final. Mantenha o domínio dos QR codes existentes; se mudar o endereço, configure redirecionamento permanente da rota `/v/<id>` e do PDF antes de substituir a hospedagem. Mantenha o Supabase de origem disponível até conferir o funcionamento e as contagens no destino. A troca de DNS/publicação deve acontecer após essas verificações. A importação cria contas Appwrite com os mesmos UUIDs e hashes bcrypt; sessões já abertas no Supabase precisarão de novo login.
 
-## Dados fictícios
-
-Após a migration, execute `supabase/seed.sql` pelo SQL Editor para inserir 10 clientes, 12 veículos e 30 serviços fictícios. O script é idempotente pelos IDs fixos. Não execute em produção com dados reais.
-
-## Validação
-
-`npm run lint`, `npm run typecheck`, `npm run build`. Depois de conectar o Supabase, confirme login, cadastro e edição, registro de serviço, retorno, QR Code, consulta anônima e transferência. As funcionalidades dependentes do banco não funcionam antes de aplicar a migration e configurar o administrador.
-
-## Deploy
-
-Conecte o repositório ao provedor Next.js (por exemplo, Vercel), configure as mesmas três variáveis, aplique a migration no Supabase de produção e adicione o perfil do administrador. Defina `NEXT_PUBLIC_SITE_URL` como o domínio HTTPS publicado para que o QR Code impresso aponte para a página correta. Faça a impressão somente após confirmar esse domínio.
+O histórico público retorna somente marca, modelo, ano, placa mascarada, quilometragem, data de atualização e os campos públicos dos serviços. A chave Appwrite e o endereço do banco nunca devem usar prefixo `NEXT_PUBLIC_`. Configure limite de requisições para `/v/*/pdf` na borda; o PDF também limita tamanho e quantidade de serviços por requisição.
 
 ## Estrutura
 
-- `app/`: painel, formulários, páginas públicas e server actions.
-- `lib/`: cliente Supabase SSR e verificação administrativa.
-- `middleware.ts`: renovação da sessão e proteção de rotas.
-- `supabase/migrations/`: schema, índices, triggers, RLS e funções restritas.
+- `app/`: painel, formulários, páginas públicas, server actions e exportação PDF.
+- `lib/appwrite.ts`: login e validação de sessão; `lib/database.ts`: conexão SQL exclusivamente no servidor.
+- `appwrite/schema.sql`: schema da nova instância; `appwrite/migrate.mjs`: migração com conferência.
+- `supabase/migrations/`: histórico original para auditoria e reversão; não aplicar no Appwrite.
 
 Não há envio automático de WhatsApp. O botão abre uma conversa com texto sugerido; o envio depende do usuário.

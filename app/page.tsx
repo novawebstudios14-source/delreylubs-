@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { admin } from '@/lib/auth';
+import { query } from '@/lib/database';
+import { reminders as loadReminders } from '@/lib/reminders';
 import { contacted } from './actions';
 import './dashboard.css';
 
@@ -26,38 +28,24 @@ function whatsapp(item: Reminder) {
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
 
-async function loadReminders(s: Awaited<ReturnType<typeof admin>>) {
-  const all: Reminder[] = [];
-  for (let from = 0; ; from += 1000) {
-    const { data, error } = await s.from('maintenance_reminders')
-      .select('id,vehicle_id,type,due_date,due_mileage,services(service_date,updated_at),vehicles(plate,brand,model,mileage,customers(name,phone,whatsapp))')
-      .order('due_date', { ascending: true, nullsFirst: false }).order('id', { ascending: true })
-      .range(from, from + 999);
-    if (error) throw new Error(error.message);
-    all.push(...((data ?? []) as unknown as Reminder[]));
-    if (!data || data.length < 1000) return all;
-  }
-}
-
 export default async function Page() {
-  const s = await admin();
+  await admin();
   const now = new Date();
   const today = new Intl.DateTimeFormat('sv-SE', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
   const soon = new Date(Date.parse(`${today}T12:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10);
   const hour = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hourCycle: 'h23' }).format(now));
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
-  const [customers, vehicles, month, total, recent, reminders, contacts] = await Promise.all([
-    s.from('customers').select('id', { count: 'exact', head: true }),
-    s.from('vehicles').select('id', { count: 'exact', head: true }),
-    s.from('services').select('id', { count: 'exact', head: true }).gte('service_date', `${today.slice(0, 7)}-01`),
-    s.from('services').select('id', { count: 'exact', head: true }),
-    s.from('services').select('id,service_date,type,vehicles(plate,brand,model)').order('service_date', { ascending: false }).order('created_at', { ascending: false }).limit(6),
-    loadReminders(s),
-    s.from('contact_logs').select('vehicle_id,contacted_at').order('contacted_at', { ascending: false }).limit(1000),
+  const [customers, vehicles, month, total, recent, allReminders, contacts] = await Promise.all([
+    query('select count(*)::int as count from customers'),
+    query('select count(*)::int as count from vehicles'),
+    query('select count(*)::int as count from services where service_date >= $1', [`${today.slice(0, 7)}-01`]),
+    query('select count(*)::int as count from services'),
+    query("select s.id,s.service_date::text,s.type,json_build_object('plate',v.plate,'brand',v.brand,'model',v.model) as vehicles from services s join vehicles v on v.id=s.vehicle_id order by s.service_date desc,s.created_at desc limit 6"),
+    loadReminders(),
+    query('select vehicle_id,contacted_at from contact_logs order by contacted_at desc limit 1000'),
   ]);
-  const error = [customers, vehicles, month, total, recent, contacts].find(r => r.error)?.error;
-  if (error) throw new Error(error.message);
-  const services = (recent.data ?? []) as unknown as RecentService[];
+  const services = recent as RecentService[];
+  const reminders = allReminders as Reminder[];
   const latestByService = new Map<string, Reminder>();
   for (const item of reminders) {
     const key = `${item.vehicle_id}:${item.type.trim().toLocaleLowerCase('pt-BR')}`;
@@ -70,7 +58,7 @@ export default async function Page() {
   const upcoming = current.filter(item => status(item, today, soon) === 'Próximo');
   const priority = [...overdue, ...upcoming].filter((item, index, items) => items.findIndex(other => other.vehicle_id === item.vehicle_id) === index).slice(0, 5);
   const latestContact = new Map<string, string>();
-  for (const item of contacts.data ?? []) if (!latestContact.has(item.vehicle_id)) latestContact.set(item.vehicle_id, item.contacted_at);
+  for (const item of contacts) if (!latestContact.has(item.vehicle_id)) latestContact.set(item.vehicle_id, item.contacted_at);
   const dateHeading = new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', weekday: 'long', day: 'numeric', month: 'long' }).format(now);
   return <div className="dashboard">
     <section className="dash-heading">
@@ -82,10 +70,10 @@ export default async function Page() {
       <div className="dash-hero-counts"><div><strong>{overdue.length}</strong><span>Vencidos</span></div><div><strong>{upcoming.length}</strong><span>Próximos 30 dias ou 1.000 km</span></div></div>
     </section>
     <section className="dash-metrics" aria-label="Indicadores da oficina">{[
-      { label: 'Clientes cadastrados', value: customers.count ?? 0, note: 'Base de relacionamento', icon: '✦', href: '/clientes' },
-      { label: 'Veículos cadastrados', value: vehicles.count ?? 0, note: 'Com histórico digital', icon: '◈', href: '/veiculos' },
-      { label: 'Serviços no mês', value: month.count ?? 0, note: 'Registrados neste mês', icon: '✳', href: '/servicos' },
-      { label: 'Históricos registrados', value: total.count ?? 0, note: 'Serviços de todos os períodos', icon: '▤', href: '/servicos' },
+      { label: 'Clientes cadastrados', value: customers[0].count, note: 'Base de relacionamento', icon: '✦', href: '/clientes' },
+      { label: 'Veículos cadastrados', value: vehicles[0].count, note: 'Com histórico digital', icon: '◈', href: '/veiculos' },
+      { label: 'Serviços no mês', value: month[0].count, note: 'Registrados neste mês', icon: '✳', href: '/servicos' },
+      { label: 'Históricos registrados', value: total[0].count, note: 'Serviços de todos os períodos', icon: '▤', href: '/servicos' },
     ].map(metric => <Link className="dash-metric" href={metric.href} key={metric.label}><div className="dash-metric-top"><span>{metric.label}</span><span className="dash-metric-icon" aria-hidden="true">{metric.icon}</span></div><strong>{metric.value.toLocaleString('pt-BR')}</strong><small>{metric.note}</small></Link>)}</section>
     <div className="dash-content">
       <section className="dash-panel dash-priorities"><div className="dash-panel-heading"><div><span className="dash-section-kicker">RELACIONAMENTO</span><h2>Prioridades de contato</h2><p>Revisões vencidas e próximas, ordenadas por urgência.</p></div><Link href="/retornos">Ver fila completa →</Link></div>

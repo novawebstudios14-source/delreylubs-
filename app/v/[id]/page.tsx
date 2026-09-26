@@ -1,14 +1,13 @@
 import { notFound } from 'next/navigation';
-import { db } from '@/lib/supabase';
+import { publicHistory } from '@/lib/public-data';
 import { displayDate, isPublicId, maintenanceStatus, type PublicHistory } from '@/lib/public-history';
 import { PdfActions } from './pdf-actions';
 
 export default async function Page({params}: {params: Promise<{id: string}>}) {
   const {id} = await params;
   if (!isPublicId(id)) notFound();
-  const s = await db();
-  const {data, error} = await s.rpc('vehicle_public_history', {p_public_id: id});
-  if (error || !data) notFound();
+  const data = await publicHistory(id);
+  if (!data) notFound();
   const vehicle = data as PublicHistory;
   const maintenance = maintenanceStatus(vehicle);
   const workshopPhone = (process.env.NEXT_PUBLIC_WORKSHOP_WHATSAPP || '5511999999999').replace(/\D/g, '');

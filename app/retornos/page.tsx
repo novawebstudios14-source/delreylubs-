@@ -1,5 +1,7 @@
 import Link from 'next/link';
 import { admin } from '@/lib/auth';
+import { query } from '@/lib/database';
+import { reminders } from '@/lib/reminders';
 import { formatPhone } from '@/lib/phone';
 import { VehicleBrandGroups } from '@/components/vehicle-brand-groups';
 import { contacted } from '../actions';
@@ -12,19 +14,13 @@ type Item = {
 
 export default async function Page({searchParams}: {searchParams: Promise<{q?: string; status?: string; type?: string}>}) {
   const {q, status, type} = await searchParams;
-  const s = await admin();
-  const data: Item[] = [];
-  for (let from = 0; ; from += 1000) {
-    const page = await s.from('maintenance_reminders')
-      .select('id,vehicle_id,type,due_date,due_mileage,services(service_date,updated_at),vehicles(id,plate,brand,model,mileage,customer_id,customers(name,phone,whatsapp))')
-      .order('due_date', {ascending: true, nullsFirst: false}).order('id', {ascending: true}).range(from, from + 999);
-    if (page.error) throw new Error(page.error.message);
-    data.push(...((page.data ?? []) as unknown as Item[]));
-    if (!page.data || page.data.length < 1000) break;
-  }
-  const {data: logs} = await s.from('contact_logs').select('vehicle_id,contacted_at').order('contacted_at', {ascending: false}).limit(500);
+  await admin();
+  const [data, logs] = await Promise.all([
+    reminders() as Promise<Item[]>,
+    query('select vehicle_id,contacted_at from contact_logs order by contacted_at desc limit 500'),
+  ]);
   const latestContact = new Map<string, string>();
-  for (const log of logs ?? []) if (!latestContact.has(log.vehicle_id)) latestContact.set(log.vehicle_id, log.contacted_at);
+  for (const log of logs) if (!latestContact.has(log.vehicle_id)) latestContact.set(log.vehicle_id, log.contacted_at);
   const today = new Intl.DateTimeFormat('sv-SE', {timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'}).format(new Date());
   const soon = new Date(Date.parse(`${today}T12:00:00Z`) + 30 * 86400000).toISOString().slice(0, 10);
   function category(item: Item) {

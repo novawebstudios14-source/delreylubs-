@@ -2,7 +2,7 @@ import { PDFDocument, rgb, type PDFFont, type PDFPage } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { db } from '@/lib/supabase';
+import { publicHistory } from '@/lib/public-data';
 import { displayDate, isPublicId, maintenanceStatus, type PublicHistory } from '@/lib/public-history';
 
 export const dynamic = 'force-dynamic';
@@ -33,9 +33,8 @@ function wrap(text: string, font: PDFFont, size: number, width: number) {
 export async function GET(_request: Request, {params}: {params: Promise<{id: string}>}) {
   const {id} = await params;
   if (!isPublicId(id)) return new Response('Histórico não encontrado.', {status: 404});
-  const client = await db();
-  const {data, error} = await client.rpc('vehicle_public_history', {p_public_id: id});
-  if (error || !data) return new Response('Histórico não encontrado.', {status: 404});
+  const data = await publicHistory(id);
+  if (!data) return new Response('Histórico não encontrado.', {status: 404});
   const vehicle = data as PublicHistory;
   // Keep anonymous PDF rendering within predictable memory and CPU bounds.
   const publicTextSize = [vehicle.brand, vehicle.model, ...vehicle.services.flatMap(service =>

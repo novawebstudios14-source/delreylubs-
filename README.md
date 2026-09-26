@@ -14,13 +14,13 @@ Next.js 15, TypeScript, Supabase Auth/PostgreSQL, Row Level Security e `qrcode`.
 4. No Supabase Auth, crie o usuário da oficina e copie seu UUID. No SQL Editor, execute `insert into public.profiles(id,role) values ('UUID_DO_USUARIO','admin');`. Use somente uma conta autorizada. O aplicativo não oferece cadastro público de administradores.
 5. `npm run dev` e acesse `http://localhost:3000`.
 
-Se o projeto Supabase desativar a exposição automática de tabelas pelo Data API, exponha `public` e conceda os privilégios de tabelas da migration. Todas as tabelas têm RLS e somente administradores autorizados acessam seus dados. A função pública aceita um UUID imprevisível e retorna marca, modelo, ano, placa mascarada, quilometragem e apenas serviços aprovados para publicação; jamais consulta tabelas de clientes para o visitante.
+Se o projeto Supabase desativar a exposição automática de tabelas pelo Data API, exponha `public` e conceda os privilégios de tabelas da migration. Todas as tabelas têm RLS e somente administradores autorizados acessam seus dados. A função pública aceita um UUID imprevisível e retorna marca, modelo, ano, placa mascarada, quilometragem e os serviços cadastrados; jamais consulta tabelas de clientes para o visitante.
 
 ## Privacidade do histórico público
 
-Cada serviço começa privado. Revise descrição, peças e possíveis dados pessoais antes de marcar **Publicar este serviço**. A migração `20260926000000_public_history_consent.sql` mantém os serviços já cadastrados privados até essa revisão. A oficina pode gerar um novo link no cadastro do veículo: o QR Code anterior deixa de funcionar e os adesivos antigos precisam ser substituídos. A exportação em PDF recusa históricos extensos para limitar o trabalho por requisição. Configure também um limite de requisições para `/v/*/pdf` na borda do provedor de hospedagem.
+Todo serviço cadastrado aparece automaticamente no histórico pelo QR Code. Descrição e peças são públicas; use **Observações internas** para dados pessoais ou informações reservadas. O link público de um veículo pode ser renovado no cadastro do veículo, invalidando o QR Code anterior; substitua os adesivos antigos. A exportação em PDF recusa históricos extensos para limitar o trabalho por requisição. Configure também um limite de requisições para `/v/*/pdf` na borda do provedor de hospedagem.
 
-Para atualizar uma instalação existente, publique o código e aplique a nova migração em uma janela coordenada: o formulário novo depende da coluna `is_public`, enquanto a função nova retira os serviços antigos do histórico público. Antes de distribuir novos QR Codes, confirme que a função pública só retorna serviços revisados.
+Em instalações que receberam `20260926000000_public_history_consent.sql`, aplique a migração `20260926000001_auto_publish_services.sql` para restaurar o histórico de todos os serviços.
 
 ## Dados fictícios
 

@@ -38,7 +38,7 @@ export async function saveService(f:FormData) {
   const s=await admin(); const id=optional(f,'id'); const vehicle=required(f,'vehicle_id');
   const serviceType=required(f,'type'); const description=required(f,'description');
   if (serviceType.length > 120 || description.length > 2000) throw new Error('Texto público excede o limite permitido');
-  const fields={vehicle_id:vehicle,service_date:required(f,'service_date'),mileage:number(f,'mileage'),type:serviceType,description,parts:bounded(f,'parts',500),amount:number(f,'amount'),mechanic:optional(f,'mechanic'),private_notes:optional(f,'private_notes'),next_due_date:optional(f,'next_due_date'),next_due_mileage:number(f,'next_due_mileage'),is_public:f.get('is_public')==='on'};
+  const fields={vehicle_id:vehicle,service_date:required(f,'service_date'),mileage:number(f,'mileage'),type:serviceType,description,parts:bounded(f,'parts',500),amount:number(f,'amount'),mechanic:optional(f,'mechanic'),private_notes:optional(f,'private_notes'),next_due_date:optional(f,'next_due_date'),next_due_mileage:number(f,'next_due_mileage')};
   const q=id?s.from('services').update(fields).eq('id',id):s.from('services').insert(fields);
   const {error}=await q; result(error); revalidatePath('/servicos'); revalidatePath('/retornos'); revalidatePath(`/veiculos?id=${vehicle}`); redirect(`/veiculos?id=${vehicle}`);
 }

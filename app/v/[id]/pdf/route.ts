@@ -37,6 +37,14 @@ export async function GET(_request: Request, {params}: {params: Promise<{id: str
   const {data, error} = await client.rpc('vehicle_public_history', {p_public_id: id});
   if (error || !data) return new Response('Histórico não encontrado.', {status: 404});
   const vehicle = data as PublicHistory;
+  // Keep anonymous PDF rendering within predictable memory and CPU bounds.
+  const publicTextSize = [vehicle.brand, vehicle.model, ...vehicle.services.flatMap(service =>
+    [service.type, service.description, service.parts ?? ''])].reduce((sum, value) => sum + value.length, 0);
+  if (vehicle.services.length > 100 || publicTextSize > 150_000) {
+    return new Response('Histórico extenso demais para exportação em PDF.', {
+      status: 413, headers: {'Cache-Control': 'no-store'},
+    });
+  }
   const maintenance = maintenanceStatus(vehicle);
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Histórico digital · ${vehicle.brand} ${vehicle.model}`);

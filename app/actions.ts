@@ -9,6 +9,11 @@ function required(f: FormData, name: string) { const v = String(f.get(name) ?? '
 function optional(f: FormData, name: string) { return String(f.get(name) ?? '').trim() || null; }
 function number(f: FormData, name: string) { const v = optional(f,name); if (v === null) return null; const n = Number(v); if (!Number.isFinite(n) || n < 0) throw new Error(`Número inválido: ${name}`); return n; }
 function result(error: {message:string}|null) { if (error) throw new Error(error.message); }
+function bounded(f: FormData, name: string, max: number) {
+  const value = optional(f, name);
+  if (value && value.length > max) throw new Error(`Campo ${name} excede ${max} caracteres`);
+  return value;
+}
 export async function login(f: FormData) {
   const s = await db(); const identifier=required(f,'identifier').toLowerCase(); const email=identifier==='nicolasdelrey'?'nicolasdelrey@delreylubs.example':identifier; const { error } = await s.auth.signInWithPassword({email, password:required(f,'password')});
   if (error) redirect('/login?erro=credenciais');
@@ -31,9 +36,16 @@ export async function saveVehicle(f: FormData) {
 }
 export async function saveService(f:FormData) {
   const s=await admin(); const id=optional(f,'id'); const vehicle=required(f,'vehicle_id');
-  const fields={vehicle_id:vehicle,service_date:required(f,'service_date'),mileage:number(f,'mileage'),type:required(f,'type'),description:required(f,'description'),parts:optional(f,'parts'),amount:number(f,'amount'),mechanic:optional(f,'mechanic'),private_notes:optional(f,'private_notes'),next_due_date:optional(f,'next_due_date'),next_due_mileage:number(f,'next_due_mileage')};
+  const serviceType=required(f,'type'); const description=required(f,'description');
+  if (serviceType.length > 120 || description.length > 2000) throw new Error('Texto público excede o limite permitido');
+  const fields={vehicle_id:vehicle,service_date:required(f,'service_date'),mileage:number(f,'mileage'),type:serviceType,description,parts:bounded(f,'parts',500),amount:number(f,'amount'),mechanic:optional(f,'mechanic'),private_notes:optional(f,'private_notes'),next_due_date:optional(f,'next_due_date'),next_due_mileage:number(f,'next_due_mileage'),is_public:f.get('is_public')==='on'};
   const q=id?s.from('services').update(fields).eq('id',id):s.from('services').insert(fields);
   const {error}=await q; result(error); revalidatePath('/servicos'); revalidatePath('/retornos'); revalidatePath(`/veiculos?id=${vehicle}`); redirect(`/veiculos?id=${vehicle}`);
+}
+export async function rotatePublicLink(f: FormData) {
+  const s=await admin(); const vehicle=required(f,'vehicle_id');
+  const {error}=await s.from('vehicles').update({public_id:crypto.randomUUID()}).eq('id',vehicle);
+  result(error); revalidatePath('/veiculos'); redirect(`/veiculos?id=${vehicle}`);
 }
 export async function transfer(f:FormData) {
   const s=await admin(); const vehicle=required(f,'vehicle_id'); const customer=required(f,'customer_id');

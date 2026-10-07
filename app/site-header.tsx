@@ -15,7 +15,7 @@ const items = [
 
 export function SiteHeader() {
   const path = usePathname();
-  const privatePage = path !== '/login' && !path.startsWith('/v/');
+  const privatePage = path !== '/login' && path !== '/consulta' && !path.startsWith('/v/');
   return <header className={`site-header ${privatePage ? 'is-admin' : 'is-public'}`}>
     <div className="header-inner">
       {privatePage ? <Link className="logo" href="/" aria-label="Del Rey Lubrificantes — painel"><Image src="/del-rey-logo.png" width={230} height={80} alt="Del Rey Lubrificantes e Troca de Óleo" priority /></Link>

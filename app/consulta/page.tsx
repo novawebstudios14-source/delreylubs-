@@ -23,10 +23,10 @@ export default async function Page({searchParams}: {searchParams: Promise<{placa
     <span className="badge">DEL REY LUBRIFICANTES</span>
     <h1 style={{marginTop: 14}}>Consulte o histórico do seu veículo</h1>
     <p className="muted">Digite a placa para ver os serviços e as próximas manutenções.</p>
-    <form action="/consulta" method="get">
+    <form action="/consulta" method="get" className="lookup-form">
       <label htmlFor="plate">Placa do veículo</label>
-      <input id="plate" name="placa" defaultValue={placa || ''} placeholder="ABC1D23" maxLength={8} autoCapitalize="characters" autoComplete="off" required style={{textTransform: 'uppercase'}} aria-describedby={message ? 'plate-message' : undefined}/>
-      {message && <p id="plate-message" role="status">{message}</p>}
+      <input id="plate" name="placa" defaultValue={placa || ''} placeholder="ABC1D23" maxLength={8} spellCheck={false} autoCapitalize="characters" autoComplete="off" required style={{textTransform: 'uppercase'}} aria-describedby={message ? 'plate-message' : undefined}/>
+      {message && <p className="form-message" id="plate-message" role="status">{message}</p>}
       <button type="submit">Consultar histórico</button>
     </form>
   </section></div>;

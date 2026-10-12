@@ -1,4 +1,6 @@
 'use client';
+import { ArrowTopRightIcon } from '@radix-ui/react-icons';
+
 
 import Link from 'next/link';
 import Image from 'next/image';
@@ -25,7 +27,7 @@ export function SiteHeader() {
           const active = item.href === '/' ? path === '/' : path.startsWith(item.href);
           return <Link key={item.href} href={item.href} aria-current={active ? 'page' : undefined}><span className="nav-index" aria-hidden="true">{item.index}</span>{item.label}</Link>;
         })}</nav>
-        <div className="header-account"><span className="header-account-label">ÁREA DA OFICINA</span><form action={logout}><button className="plain">Sair <span aria-hidden="true">↗</span></button></form></div>
+        <div className="header-account"><span className="header-account-label">ÁREA DA OFICINA</span><form action={logout}><button className="plain">Sair <span aria-hidden="true"><ArrowTopRightIcon className="ui-icon" aria-hidden="true"/></span></button></form></div>
       </>}
     </div>
   </header>;

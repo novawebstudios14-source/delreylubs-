@@ -1,3 +1,4 @@
+import { ArrowTopRightIcon } from '@radix-ui/react-icons';
 import { notFound } from 'next/navigation';
 import { db } from '@/lib/supabase';
 import { displayDate, isPublicId, maintenanceStatus, type PublicHistory } from '@/lib/public-history';
@@ -33,7 +34,7 @@ export default async function Page({params}: {params: Promise<{id: string}>}) {
       <h2 style={{marginTop: 14}}>{maintenance.overdue ? 'Manutenção vencida' : 'Próxima manutenção'}</h2>
       <strong>{maintenance.service.type}</strong>
       <p>{maintenance.service.next_due_date && displayDate(maintenance.service.next_due_date)}{maintenance.service.next_due_date && maintenance.service.next_due_mileage !== null ? ' ou ' : ''}{maintenance.service.next_due_mileage !== null && `${maintenance.service.next_due_mileage.toLocaleString('pt-BR')} km`}</p>
-      <a className="button whatsapp-button" href={whatsapp} target="_blank" rel="noopener noreferrer">Agendar pelo WhatsApp ↗</a>
+      <a className="button whatsapp-button" href={whatsapp} target="_blank" rel="noopener noreferrer">Agendar pelo WhatsApp <ArrowTopRightIcon className="ui-icon" aria-hidden="true"/></a>
       {isDemoPhone && <p className="muted small demo-phone">Número de demonstração. A oficina ainda precisa informar o WhatsApp oficial.</p>}
     </section>}
     <section className="card"><h2>Histórico de manutenções</h2>
